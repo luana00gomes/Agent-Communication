@@ -1,4 +1,5 @@
 import time
+from turtle import st
 from spade.agent import Agent
 from spade.behaviour import FSMBehaviour, State
 from spade.message import Message
@@ -9,9 +10,10 @@ STATE_01 = "STATE_01"
 STATE_02 = "STATE_02"
 STATE_10 = "STATE_10"
 STATE_11 = "STATE_11"
+STATE_12 = "STATE_12"
 STATE_100 = "STATE_100"
 
-class localVariables():
+class localVariables():    
     x_atual = random.randint(-1000,1000)
     x = []
     y = []
@@ -29,7 +31,7 @@ class ExampleFSMBehaviour(FSMBehaviour):
 class step_1_InformBehav(State):
     async def run(self):
         print("step_1_InformBehav running")
-        msg = Message(to="luana_gerador@jix.im")     # Instantiate the message
+        msg = Message(to=destinatary)     # Instantiate the message
         msg.set_metadata("performative", "request")  # Set the "inform" FIPA performative
         msg.body = "Qual a funcao?"                    # Set the message content
         
@@ -56,11 +58,10 @@ class step_2_RecieveType(State):
 
             self.set_next_state(STATE_10)
 
-class step_10_FunctionNOrderSolver(State):
+class step_10_sendX(State):
     async def run(self):
         print("Sending number ", variables.x_atual)
-
-        msg = Message(to="luana_gerador@jix.im")     # Instantiate the message
+        msg = Message(to=destinatary)     # Instantiate the message
         msg.set_metadata("performative", "subscribe")   # Set the "inform" FIPA performative 
         msg.body = str(variables.x_atual)
         await self.send(msg)
@@ -77,17 +78,20 @@ class step_11_VerifyX(State):
             else:
                 variables.x.append(variables.x_atual)
                 variables.y.append(int(res.body))
-                variables.x_atual += random.randint(-10, 50)
-
-                if(len(variables.y)>=(variables.order+1)):
-                    z = np.polyfit(variables.x, variables.y, variables.order)
-                    i = random.randint(0, variables.order-1)
-                    result = int((np.poly1d(z)).r[i])
-                    variables.x_atual = result
-                    variables.x_atual = result
-
-                self.set_next_state(STATE_10)
+                self.set_next_state(STATE_12)
                 
+class step_12_newShot(State):
+    async def run(self):
+        variables.x_atual += random.randint(-10, 50)
+
+        if(len(variables.y)>=(variables.order+1)):
+            z = np.polyfit(variables.x, variables.y, variables.order)
+            i = random.randint(0, variables.order-1)
+            result = int((np.poly1d(z)).r[i])
+            variables.x_atual = result
+
+        self.set_next_state(STATE_10)
+
 class step_100_Result(State):
     async def run(self):
         print("FOUND SOLUTION!")
@@ -98,21 +102,33 @@ class FSMAgent(Agent):
         fsm = ExampleFSMBehaviour()
         fsm.add_state(name=STATE_01, state=step_1_InformBehav(), initial=True)
         fsm.add_state(name=STATE_02, state=step_2_RecieveType())
-        fsm.add_state(name=STATE_10, state=step_10_FunctionNOrderSolver())
+        fsm.add_state(name=STATE_10, state=step_10_sendX())
         fsm.add_state(name=STATE_11, state=step_11_VerifyX())
+        fsm.add_state(name=STATE_12, state=step_12_newShot())
         fsm.add_state(name=STATE_100, state=step_100_Result())
 
         fsm.add_transition(source=STATE_01, dest=STATE_02)
         fsm.add_transition(source=STATE_02, dest=STATE_10)
         fsm.add_transition(source=STATE_10, dest=STATE_11)
-        fsm.add_transition(source=STATE_11, dest=STATE_10)
+        fsm.add_transition(source=STATE_11, dest=STATE_12)
         fsm.add_transition(source=STATE_11, dest=STATE_100)
+        fsm.add_transition(source=STATE_12, dest=STATE_10)
         self.add_behaviour(fsm)
 
 
 if __name__ == "__main__":
-    variables = localVariables()
-    fsmagent = FSMAgent("user1_@jix.im", "password")
+    import sys
+    try:
+        user = str(sys.argv[1])
+        password = str(sys.argv[2])
+        destinatary = str(sys.argv[3])
+        variables = localVariables()
+    except:
+        print("Verify the input arguments and try running again")
+        sys.exit()
+
+    print("Login with user ", user, " on XMPP server")
+    fsmagent = FSMAgent(user, password)
     future = fsmagent.start()
     future.result()
 

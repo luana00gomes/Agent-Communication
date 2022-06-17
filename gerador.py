@@ -112,7 +112,17 @@ class Gerador(Agent):
 
 
 if __name__ == "__main__":
-    gerador = Gerador("user2_@jix.im", "password")
+    import sys
+
+    try:
+        user = str(sys.argv[1])
+        password = str(sys.argv[2])
+    except:
+        print("Verify the input arguments and try running again")
+        sys.exit()
+        
+    print("Login with user ", user, " on XMPP server")
+    gerador = Gerador(user, password)
     future = gerador.start()
     future.result() # wait for receiver agent to be prepared.
 
